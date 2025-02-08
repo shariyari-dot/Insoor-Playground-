@@ -44,6 +44,16 @@
     </label>
     <br><br>
     <button onclick="login()">Login</button>
+    <button onclick="showCreateUserForm()">Create User</button>
+  </div>
+
+  <!-- Create User Form -->
+  <div id="createUserForm" class="login-form hidden">
+    <h2>Create User</h2>
+    <input type="text" id="newUsername" placeholder="New Username">
+    <input type="password" id="newPassword" placeholder="New Password">
+    <button onclick="createUser()">Create User</button>
+    <button onclick="showLoginForm()">Back to Login</button>
   </div>
 
   <!-- Main System (Hidden until login) -->
@@ -67,12 +77,19 @@
   </div>
 
   <script>
-    // Admin credentials (case-insensitive)
-    const adminUsername = "admin";
-    const adminPassword = "admin123";
+    // Firebase configuration
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_AUTH_DOMAIN",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_STORAGE_BUCKET",
+      messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+    firebase.initializeApp(firebaseConfig);
 
-    // User accounts storage
-    let users = JSON.parse(localStorage.getItem('users') || '[]');
+    const auth = firebase.auth();
+    const db = firebase.firestore();
 
     // Current user
     let currentUser = null;
@@ -80,37 +97,63 @@
     // Login function
     function login() {
       const username = document.getElementById('username').value.trim().toLowerCase();
-      const password = document.getElementById('password').value.trim().toLowerCase();
+      const password = document.getElementById('password').value.trim();
 
-      if (username === adminUsername.toLowerCase() && password === adminPassword.toLowerCase()) {
-        currentUser = { username: adminUsername, isAdmin: true };
-        showMainSystem();
-      } else {
-        const user = users.find(u => u.username.toLowerCase() === username && u.password.toLowerCase() === password);
-        if (user) {
-          currentUser = user;
+      auth.signInWithEmailAndPassword(username + '@playground.com', password)
+        .then((userCredential) => {
+          currentUser = userCredential.user;
           showMainSystem();
-        } else {
+          loadData();
+        })
+        .catch((error) => {
           alert('Invalid username or password.');
-          return;
-        }
-      }
-
-      document.getElementById('loginForm').classList.add('hidden');
-      document.getElementById('mainSystem').classList.remove('hidden');
+        });
     }
 
     // Logout function
     function logout() {
-      currentUser = null;
-      document.getElementById('loginForm').classList.remove('hidden');
-      document.getElementById('mainSystem').classList.add('hidden');
+      auth.signOut().then(() => {
+        currentUser = null;
+        showLoginForm();
+      });
+    }
+
+    // Create user function
+    function createUser() {
+      const username = document.getElementById('newUsername').value.trim().toLowerCase();
+      const password = document.getElementById('newPassword').value.trim();
+
+      if (!username || !password) return alert('Please enter a username and password.');
+
+      auth.createUserWithEmailAndPassword(username + '@playground.com', password)
+        .then((userCredential) => {
+          alert('User created successfully!');
+          showLoginForm();
+        })
+        .catch((error) => {
+          alert('Error creating user: ' + error.message);
+        });
     }
 
     // Show main system
     function showMainSystem() {
       document.getElementById('loginForm').classList.add('hidden');
+      document.getElementById('createUserForm').classList.add('hidden');
       document.getElementById('mainSystem').classList.remove('hidden');
+    }
+
+    // Show login form
+    function showLoginForm() {
+      document.getElementById('loginForm').classList.remove('hidden');
+      document.getElementById('createUserForm').classList.add('hidden');
+      document.getElementById('mainSystem').classList.add('hidden');
+    }
+
+    // Show create user form
+    function showCreateUserForm() {
+      document.getElementById('loginForm').classList.add('hidden');
+      document.getElementById('createUserForm').classList.remove('hidden');
+      document.getElementById('mainSystem').classList.add('hidden');
     }
 
     // Toggle password visibility
@@ -126,7 +169,7 @@
       }
     }
 
-    // Add name to the table
+    // Add name to the table and Firestore
     function addName() {
       const name = document.getElementById('nameInput').value.trim();
       if (!name) return alert('Please enter a name.');
@@ -134,69 +177,65 @@
       const now = new Date();
       const alarmTime = new Date(now.getTime() + 60 * 60 * 1000); // Add 1 hour
 
-      const table = document.querySelector('#playgroundTable tbody');
-      const row = table.insertRow();
-
-      const nameCell = row.insertCell(0);
-      const timeCell = row.insertCell(1);
-      const alarmCell = row.insertCell(2);
-
-      nameCell.textContent = name;
-      timeCell.textContent = now.toLocaleString();
-      alarmCell.textContent = alarmTime.toLocaleString();
-
-      // Save to localStorage
-      const entry = { name, time: now.toISOString(), alarm: alarmTime.toISOString() };
-      const entries = JSON.parse(localStorage.getItem('playgroundEntries') || '[]');
-      entries.push(entry);
-      localStorage.setItem('playgroundEntries', JSON.stringify(entries));
-
-      // Set alarm
-      setTimeout(() => {
-        alert(`Alarm: Time's up for ${name}!`);
-      }, alarmTime - now);
+      // Save to Firestore
+      db.collection('entries').add({
+        name,
+        time: now.toISOString(),
+        alarm: alarmTime.toISOString(),
+        userId: currentUser.uid
+      })
+      .then(() => {
+        loadData(); // Refresh the table
+      })
+      .catch((error) => {
+        alert('Error adding entry: ' + error.message);
+      });
 
       document.getElementById('nameInput').value = '';
     }
 
-    // Load saved entries on page load
-    window.onload = () => {
-      const entries = JSON.parse(localStorage.getItem('playgroundEntries') || '[]');
+    // Load data from Firestore
+    function loadData() {
       const table = document.querySelector('#playgroundTable tbody');
+      table.innerHTML = ''; // Clear the table
 
-      entries.forEach(entry => {
-        const row = table.insertRow();
-        const nameCell = row.insertCell(0);
-        const timeCell = row.insertCell(1);
-        const alarmCell = row.insertCell(2);
+      db.collection('entries')
+        .where('userId', '==', currentUser.uid)
+        .get()
+        .then((querySnapshot) => {
+          querySnapshot.forEach((doc) => {
+            const entry = doc.data();
+            const row = table.insertRow();
 
-        nameCell.textContent = entry.name;
-        timeCell.textContent = new Date(entry.time).toLocaleString();
-        alarmCell.textContent = new Date(entry.alarm).toLocaleString();
+            const nameCell = row.insertCell(0);
+            const timeCell = row.insertCell(1);
+            const alarmCell = row.insertCell(2);
 
-        // Check if alarm time has passed
-        if (new Date(entry.alarm) <= new Date()) {
-          row.style.backgroundColor = '#ffcccc'; // Highlight expired alarms
-        }
-      });
-    };
+            nameCell.textContent = entry.name;
+            timeCell.textContent = new Date(entry.time).toLocaleString();
+            alarmCell.textContent = new Date(entry.alarm).toLocaleString();
+
+            // Check if alarm time has passed
+            if (new Date(entry.alarm) <= new Date()) {
+              row.style.backgroundColor = '#ffcccc'; // Highlight expired alarms
+            }
+          });
+        })
+        .catch((error) => {
+          alert('Error loading data: ' + error.message);
+        });
+    }
+
+    // Check authentication state
+    auth.onAuthStateChanged((user) => {
+      if (user) {
+        currentUser = user;
+        showMainSystem();
+        loadData();
+      } else {
+        showLoginForm();
+      }
+    });
   </script>
 </body>
 </html>
-<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js"></script>
-<script>
-  const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_AUTH_DOMAIN",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_STORAGE_BUCKET",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
-  };
-  firebase.initializeApp(firebaseConfig);
-
-  const auth = firebase.auth();
-  const db = firebase.firestore();
-</script>
