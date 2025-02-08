@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Playground System</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+    .tabs {
+      display: flex;
+      margin-bottom: 20px;
+    }
+    .tab-button {
+      padding: 10px 20px;
+      cursor: pointer;
+      background-color: #f2f2f2;
+      border: 1px solid #ddd;
+      border-bottom: none;
+      margin-right: 5px;
+    }
+    .tab-button.active {
+      background-color: #ddd;
+    }
+    .tab-content {
+      display: none;
+      padding: 20px;
+      border: 1px solid #ddd;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    .login-form {
+      margin-bottom: 20px;
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <!-- Login Form -->
+  <div id="loginForm" class="login-form">
+    <h2>Login</h2>
+    <input type="text" id="username" placeholder="Username">
+    <input type="password" id="password" placeholder="Password">
+    <button onclick="login()">Login</button>
+  </div>
+
+  <!-- Main System (Hidden until login) -->
+  <div id="mainSystem" class="hidden">
+    <div class="tabs">
+      <button class="tab-button active" onclick="openTab('tab1')">Playground</button>
+      <button id="summaryTabButton" class="tab-button hidden" onclick="openTab('tab2')">Summary</button>
+      <button id="createUserTabButton" class="tab-button hidden" onclick="openTab('tab3')">Create User</button>
+    </div>
+
+    <!-- Tab 1: Playground -->
+    <div id="tab1" class="tab-content active">
+      <h2>Playground System</h2>
+      <table id="playgroundTable">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Time of Writing</th>
+            <th>Alarm Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Rows will be added dynamically -->
+        </tbody>
+      </table>
+      <br>
+      <input type="text" id="nameInput" placeholder="Enter name">
+      <button onclick="addName()">Add Name</button>
+    </div>
+
+    <!-- Tab 2: Monthly Summary -->
+    <div id="tab2" class="tab-content">
+      <h2>Monthly Summary</h2>
+      <p>Total Entries: <span id="totalEntries">0</span></p>
+      <p>Alarms Triggered: <span id="alarmsTriggered">0</span></p>
+    </div>
+
+    <!-- Tab 3: Create User -->
+    <div id="tab3" class="tab-content">
+      <h2>Create User Account</h2>
+      <input type="text" id="newUsername" placeholder="New Username">
+      <input type="password" id="newPassword" placeholder="New Password">
+      <button onclick="createUser()">Create User</button>
+    </div>
+  </div>
+
+  <script>
+    // Admin credentials
+    const adminUsername = "admin";
+    const adminPassword = "admin123";
+
+    // User accounts storage
+    let users = JSON.parse(localStorage.getItem('users') || '[]');
+
+    // Current user
+    let currentUser = null;
+
+    // Open tab function
+    function openTab(tabName) {
+      const tabContents = document.querySelectorAll('.tab-content');
+      const tabButtons = document.querySelectorAll('.tab-button');
+
+      tabContents.forEach(tab => tab.classList.remove('active'));
+      tabButtons.forEach(button => button.classList.remove('active'));
+
+      document.getElementById(tabName).classList.add('active');
+      document.querySelector(`[onclick="openTab('${tabName}')"]`).classList.add('active');
+    }
+
+    // Login function
+    function login() {
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value.trim();
+
+      if (username === adminUsername && password === adminPassword) {
+        currentUser = { username: adminUsername, isAdmin: true };
+        showAdminTabs();
+      } else {
+        const user = users.find(u => u.username === username && u.password === password);
+        if (user) {
+          currentUser = user;
+          showUserTabs();
+        } else {
+          alert('Invalid username or password.');
+          return;
+        }
+      }
+
+      document.getElementById('loginForm').classList.add('hidden');
+      document.getElementById('mainSystem').classList.remove('hidden');
+    }
+
+    // Show admin tabs
+    function showAdminTabs() {
+      document.getElementById('summaryTabButton').classList.remove('hidden');
+      document.getElementById('createUserTabButton').classList.remove('hidden');
+    }
+
+    // Show user tabs
+    function showUserTabs() {
+      document.getElementById('summaryTabButton').classList.add('hidden');
+      document.getElementById('createUserTabButton').classList.add('hidden');
+    }
+
+    // Create user function
+    function createUser() {
+      const newUsername = document.getElementById('newUsername').value.trim();
+      const newPassword = document.getElementById('newPassword').value.trim();
+
+      if (!newUsername || !newPassword) return alert('Please enter a username and password.');
+
+      const userExists = users.some(u => u.username === newUsername);
+      if (userExists) return alert('Username already exists.');
+
+      users.push({ username: newUsername, password: newPassword });
+      localStorage.setItem('users', JSON.stringify(users));
+      alert('User created successfully!');
+      document.getElementById('newUsername').value = '';
+      document.getElementById('newPassword').value = '';
+    }
+
+    // Add name to the table
+    function addName() {
+      const name = document.getElementById('nameInput').value.trim();
+      if (!name) return alert('Please enter a name.');
+
+      const now = new Date();
+      const alarmTime = new Date(now.getTime() + 60 * 60 * 1000); // Add 1 hour
+
+      const table = document.querySelector('#playgroundTable tbody');
+      const row = table.insertRow();
+
+      const nameCell = row.insertCell(0);
+      const timeCell = row.insertCell(1);
+      const alarmCell = row.insertCell(2);
+
+      nameCell.textContent = name;
+      timeCell.textContent = now.toLocaleString();
+      alarmCell.textContent = alarmTime.toLocaleString();
+
+      // Save to localStorage
+      const entry = { name, time: now.toISOString(), alarm: alarmTime.toISOString() };
+      const entries = JSON.parse(localStorage.getItem('playgroundEntries') || '[]');
+      entries.push(entry);
+      localStorage.setItem('playgroundEntries', JSON.stringify(entries));
+
+      // Update summary
+      updateSummary();
+
+      // Set alarm
+      setTimeout(() => {
+        alert(`Alarm: Time's up for ${name}!`);
+        updateSummary();
+      }, alarmTime - now);
+
+      document.getElementById('nameInput').value = '';
+    }
+
+    // Update monthly summary
+    function updateSummary() {
+      const entries = JSON.parse(localStorage.getItem('playgroundEntries') || '[]');
+      const totalEntries = entries.length;
+      const alarmsTriggered = entries.filter(entry => new Date(entry.alarm) <= new Date()).length;
+
+      document.getElementById('totalEntries').textContent = totalEntries;
+      document.getElementById('alarmsTriggered').textContent = alarmsTriggered;
+    }
+
+    // Load saved entries on page load
+    window.onload = () => {
+      const entries = JSON.parse(localStorage.getItem('playgroundEntries') || '[]');
+      const table = document.querySelector('#playgroundTable tbody');
+
+      entries.forEach(entry => {
+        const row = table.insertRow();
+        const nameCell = row.insertCell(0);
+        const timeCell = row.insertCell(1);
+        const alarmCell = row.insertCell(2);
+
+        nameCell.textContent = entry.name;
+        timeCell.textContent = new Date(entry.time).toLocaleString();
+        alarmCell.textContent = new Date(entry.alarm).toLocaleString();
+
+        // Check if alarm time has passed
+        if (new Date(entry.alarm) <= new Date()) {
+          row.style.backgroundColor = '#ffcccc'; // Highlight expired alarms
+        }
+      });
+
+      updateSummary();
+    };
+  </script>
+</body>
+</html>
