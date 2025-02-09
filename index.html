@@ -37,10 +37,10 @@
     <input type="text" id="username" placeholder="Username">
     <div class="password-container">
       <input type="password" id="password" placeholder="Password">
-      <span class="toggle-password" onclick="togglePasswordVisibility()"></span>
+      <span class="toggle-password" onclick="togglePasswordVisibility()">👁️</span>
     </div>
     <label>
-      <input type="checkbox" id="showPassword"> Show Password
+      <input type="checkbox" id="showPassword" onchange="togglePasswordVisibility()"> Show Password
     </label>
     <br><br>
     <button onclick="login()">Login</button>
@@ -107,6 +107,7 @@
         })
         .catch((error) => {
           alert('Invalid username or password.');
+          playAlarm(); // Play alarm for wrong password
         });
     }
 
@@ -130,4 +131,118 @@
           alert('User created successfully!');
           showLoginForm();
         })
-        .catch((error) =>
+        .catch((error) => {
+          alert('Error creating user: ' + error.message);
+        });
+    }
+
+    // Show main system
+    function showMainSystem() {
+      document.getElementById('loginForm').classList.add('hidden');
+      document.getElementById('createUserForm').classList.add('hidden');
+      document.getElementById('mainSystem').classList.remove('hidden');
+    }
+
+    // Show login form
+    function showLoginForm() {
+      document.getElementById('loginForm').classList.remove('hidden');
+      document.getElementById('createUserForm').classList.add('hidden');
+      document.getElementById('mainSystem').classList.add('hidden');
+    }
+
+    // Show create user form
+    function showCreateUserForm() {
+      document.getElementById('loginForm').classList.add('hidden');
+      document.getElementById('createUserForm').classList.remove('hidden');
+      document.getElementById('mainSystem').classList.add('hidden');
+    }
+
+    // Toggle password visibility
+    function togglePasswordVisibility() {
+      const passwordInput = document.getElementById('password');
+      const showPasswordCheckbox = document.getElementById('showPassword');
+      if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        showPasswordCheckbox.checked = true;
+      } else {
+        passwordInput.type = 'password';
+        showPasswordCheckbox.checked = false;
+      }
+    }
+
+    // Play alarm for wrong password
+    function playAlarm() {
+      const audio = new Audio('https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3');
+      audio.play();
+    }
+
+    // Add name to the table and Firestore
+    function addName() {
+      const name = document.getElementById('nameInput').value.trim();
+      if (!name) return alert('Please enter a name.');
+
+      const now = new Date();
+      const alarmTime = new Date(now.getTime() + 60 * 60 * 1000); // Add 1 hour
+
+      // Save to Firestore
+      db.collection('entries').add({
+        name,
+        time: now.toISOString(),
+        alarm: alarmTime.toISOString(),
+        userId: currentUser.uid
+      })
+      .then(() => {
+        loadData(); // Refresh the table
+      })
+      .catch((error) => {
+        alert('Error adding entry: ' + error.message);
+      });
+
+      document.getElementById('nameInput').value = '';
+    }
+
+    // Load data from Firestore
+    function loadData() {
+      const table = document.querySelector('#playgroundTable tbody');
+      table.innerHTML = ''; // Clear the table
+
+      db.collection('entries')
+        .where('userId', '==', currentUser.uid)
+        .get()
+        .then((querySnapshot) => {
+          querySnapshot.forEach((doc) => {
+            const entry = doc.data();
+            const row = table.insertRow();
+
+            const nameCell = row.insertCell(0);
+            const timeCell = row.insertCell(1);
+            const alarmCell = row.insertCell(2);
+
+            nameCell.textContent = entry.name;
+            timeCell.textContent = new Date(entry.time).toLocaleString();
+            alarmCell.textContent = new Date(entry.alarm).toLocaleString();
+
+            // Check if alarm time has passed
+            if (new Date(entry.alarm) <= new Date()) {
+              row.style.backgroundColor = '#ffcccc'; // Highlight expired alarms
+            }
+          });
+        })
+        .catch((error) => {
+          alert('Error loading data: ' + error.message);
+        });
+    }
+
+    // Check authentication state
+    auth.onAuthStateChanged((user) => {
+      if (user) {
+        currentUser = user;
+        showMainSystem();
+        loadData();
+      } else {
+        showLoginForm();
+      }
+    });
+  </script>
+</body>
+</html>
